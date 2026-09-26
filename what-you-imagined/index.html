@@ -97,13 +97,25 @@ body {
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="What You Imagined">
-<meta name="wyi-build" content="2026-09-26-layer0">
+<meta name="wyi-build" content="2026-09-26-fix1">
 <style>
 html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:#000; position:fixed;
   touch-action:none; overscroll-behavior:none; -webkit-user-select:none; user-select:none;
   -webkit-touch-callout:none; -webkit-tap-highlight-color:transparent; -webkit-text-size-adjust:none; }
 #canvas { touch-action:none; }
 </style>
+<script>
+// Build tag + cache-busting: the game data (index.pck/.wasm) is fetched with ?v=<build>.
+window.wyiBuild = '2026-09-26-fix1';
+(function () {
+  var f = window.fetch;
+  if (!f) return;
+  window.fetch = function (u, o) {
+    try { if (typeof u === 'string' && /index\.(pck|wasm)$/.test(u)) u = u + '?v=' + window.wyiBuild; } catch (e) {}
+    return f.call(this, u, o);
+  };
+})();
+</script>
 <script>
 // ---- Web-audio unlock for iPhone/iPad Safari (and Chrome's autoplay policy) ----
 // Browsers keep an AudioContext 'suspended' until a user gesture. We remember every
@@ -121,8 +133,24 @@ html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; back
   try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) {}
   // test hook: count sample playbacks started by the engine
   window.wyiSrcStarts = 0;
+  // Music loops: the engine's Web Audio sample playback loops by restarting the buffer on
+  // 'ended' (a small gap, and on iPhone Safari the music could stop). Buffers whose length
+  // matches a music track (window.wyiLoopDurs, filled by Game.make_music) get the browser's
+  // native, sample-accurate looping instead.
+  window.wyiNativeLoops = 0;
   var st = window.AudioBufferSourceNode && AudioBufferSourceNode.prototype.start;
-  if (st) AudioBufferSourceNode.prototype.start = function () { window.wyiSrcStarts++; return st.apply(this, arguments); };
+  if (st) AudioBufferSourceNode.prototype.start = function () {
+    window.wyiSrcStarts++;
+    try {
+      var b = this.buffer, L = window.wyiLoopDurs;
+      if (b && L && !this.loop) {
+        for (var i = 0; i < L.length; i++) {
+          if (Math.abs(b.duration - L[i]) < 0.02) { this.loop = true; this.loopStart = 0; this.loopEnd = b.duration; window.wyiNativeLoops++; (window.wyiLooped = window.wyiLooped || []).push(Math.round(b.duration * 1000) / 1000); break; }
+        }
+      }
+    } catch (e) {}
+    return st.apply(this, arguments);
+  };
   var tag = null, tagOk = false;
   window.wyiAudioUnlocks = 0;
   function unlock() {
@@ -174,7 +202,7 @@ document.addEventListener('dblclick', function (e) { e.preventDefault(); });
 
 		<script src="index.js"></script>
 		<script>
-const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":true,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":4789764,"index.wasm":39514754},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4};
+const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":true,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":4834612,"index.wasm":39514754},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4};
 const GODOT_THREADS_ENABLED = false;
 const engine = new Engine(GODOT_CONFIG);
 
